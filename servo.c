@@ -115,8 +115,18 @@ int main(void)
 	  int pwm = angle * 1.111;
 	  if( btBuffer[0] == '+' )
 		  pwm = 100 - pwm;
-	  else
+	  else if( btBuffer[0] == '-' )
 		  pwm = 100 + pwm;
+    else if( btBuffer[0] == 'F' )
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, 1);
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, 0);
+    else if( btBuffer[0] == 'B' )
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, 0);
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, 1);
+    else if( btBuffer[0] == 'S' )
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, 0);
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, 0);
+
 
 	  //__HAL_TIM_SetCompare(&htim1, TIM_CHANNEL_1, angle);
 	  htim1.Instance->CCR1 = pwm;
