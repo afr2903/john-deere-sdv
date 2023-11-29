@@ -91,19 +91,19 @@ uint8_t rxData;
 uint8_t btBuffer[3];
 bool toggle_interrupt;
 
-int calculate_pid(pid_sytem* sytem, float setpoint, float current){
+int calculate_pid(struct pid_sytem* system, float setpoint, float current){
     float error = setpoint - current;
     system->integral += error;
     // Saturation for integral values
     system->integral = system->integral > system->max_integral ? system->max_integral : system->integral;
     system->integral = system->integral < -system->max_integral ? -system->max_integral : system->integral;
 
-    int output = (int)(system->kp * error + system->ki * system->integral );
+    float output = system->kp * error + system->ki * system->integral;
     // Saturation for output values
     output = output > system->max_value ? system->max_value : output;
     output = output < -system->max_value ? -system->max_value : output;
 
-    return output;
+    return (int)output;
 }
 
 /* USER CODE END 0 */
@@ -146,10 +146,10 @@ int main(void){
   /*bno055_assignI2C(&hi2c1);
   bno055_setup();
   bno055_setOperationModeNDOF();*/
-    pid_sytem speed;
-    speed.kp = speed_kp;
-    speed.ki = speed_ki;
-    speed.max_integral = 100;
+    struct pid_sytem speed;
+    speed.kp = 200000;
+    speed.ki = 10000;
+    speed.max_integral = 10000;
     speed.max_value = 65535;
   /* USER CODE END 2 */
 
@@ -160,12 +160,12 @@ int main(void){
 	ca = HAL_GPIO_ReadPin(encoder_a_GPIO_Port, encoder_a_Pin);
 	cb = HAL_GPIO_ReadPin(encoder_b_GPIO_Port, encoder_b_Pin);
     rev = (float)ticks / ppr;
-    rpm = (((float)(ticks - last_ticks) / 1264.0 ) / (float)HAL_GetTick() ) * 60000.0; // Revolutions per minute
+    rpm = (((float)(ticks - last_ticks) / ppr ) / (float)HAL_GetTick() ) * 600000.0; // Revolutions per minute
     last_ticks = ticks;
     distance = rev * gear_ratio * 2 * pi * wheel_radius;
-    int motor_pwm = calculate_pid(&speed, 0, rpm);
-    HAL_GPIO_WritePin(motor_a_GPIO_Port, motor_a_Pin, motor_pwm > 0 ? 1 : 0);
-    HAL_GPIO_WritePin(motor_b_GPIO_Port, motor_b_Pin, motor_pwm < 0 ? 1 : 0);
+    int motor_pwm = calculate_pid(&speed, 0.2, distance);
+    HAL_GPIO_WritePin(motor_a_GPIO_Port, motor_a_Pin, motor_pwm < 0 ? 1 : 0);
+    HAL_GPIO_WritePin(motor_b_GPIO_Port, motor_b_Pin, motor_pwm > 0 ? 1 : 0);
     htim4.Instance->CCR3 = motor_pwm > 0 ? motor_pwm : -motor_pwm;
 	/*bno055_vector_t v = bno055_getVectorEuler();
 	r = v.x;

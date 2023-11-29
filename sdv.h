@@ -91,9 +91,9 @@ static const float ppr = 670;
 // 1 motor rev = 2*pi*wheel_radius
 
 // Speed PID constants
-static const float speed_kp = 97.3574
-static const float speed_ki = 449.35
-static const float speed_kd = 0.0
+static const float speed_kp = 97.3574;
+static const float speed_ki = 449.35;
+static const float speed_kd = 0.0;
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
