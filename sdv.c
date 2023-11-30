@@ -1,4 +1,3 @@
-
 /* USER CODE BEGIN Header */
 /**
  ******************************************************************************
@@ -91,7 +90,8 @@ bool toggle_interrupt;
 
 int state = 0;
 
-int calculate_pid(struct pid_sytem *system, float setpoint, float current){
+int calculate_pid(struct pid_sytem *system, float setpoint, float current)
+{
     float error = setpoint - current;
     system->integral += error;
     // Saturation for integral values
@@ -112,7 +112,8 @@ int calculate_pid(struct pid_sytem *system, float setpoint, float current){
  * @brief  The application entry point.
  * @retval int
  */
-int main(void){
+int main(void)
+{
     /* USER CODE BEGIN 1 */
 
     /* USER CODE END 1 */
@@ -153,16 +154,17 @@ int main(void){
     position.max_value = 60535;
 
     struct pid_sytem direction;
-    direction.kp = 0.9;
+    direction.kp = 14;
     direction.ki = 0.0;
     direction.max_integral = 50;
-    direction.max_value = 50;
+    direction.max_value = 500;
 
     /* USER CODE END 2 */
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    while (1){
+    while (1)
+    {
         /* USER CODE END WHILE */
         rev = (float)ticks / ppr;
         rpm = (((float)(ticks - last_ticks) / ppr) / (float)HAL_GetTick()) * 600000.0; // Revolutions per minute
@@ -172,14 +174,15 @@ int main(void){
         bno055_vector_t v = bno055_getVectorEuler();
         int motor_pwm = 0, direction_pwm = 0;
 
-        switch (state){
+        switch (state)
+        {
         case 0: // Move forward target_distance meters
             angle = v.x > 180 ? v.x - 360 : v.x;
             motor_pwm = calculate_pid(&position, target_distance, current_distance);
             direction_pwm = calculate_pid(&direction, 0.0, angle);
             if (target_distance - current_distance < target_tolerance)
             {
-                state = 1;
+                state = -3;
                 htim4.Instance->CCR3 = motor_pwm = 0;
                 HAL_Delay(4000);
             }
@@ -193,7 +196,7 @@ int main(void){
                 state = 2;
                 ticks = 0;
                 htim4.Instance->CCR3 = motor_pwm = 0;
-                htim1.Instance->CCR1 = 100;
+                htim1.Instance->CCR1 = 1000;
                 HAL_Delay(3000);
             }
             break;
@@ -218,7 +221,7 @@ int main(void){
                 state = 4;
                 ticks = 0;
                 htim4.Instance->CCR3 = motor_pwm = 0;
-                htim1.Instance->CCR1 = 100;
+                htim1.Instance->CCR1 = 1000;
                 HAL_Delay(3000);
             }
             break;
@@ -242,7 +245,7 @@ int main(void){
                 state = 6;
                 ticks = 0.0;
                 htim4.Instance->CCR3 = motor_pwm = 0;
-                htim1.Instance->CCR1 = 100;
+                htim1.Instance->CCR1 = 1000;
                 HAL_Delay(3000);
             }
             break;
@@ -252,11 +255,22 @@ int main(void){
             direction_pwm = calculate_pid(&direction, 0.0, angle);
             if (target_distance - current_distance < target_tolerance)
             {
-                state = 7;
+                state = -3;
                 htim4.Instance->CCR3 = motor_pwm = 0;
-                htim1.Instance->CCR1 = 100;
+                htim1.Instance->CCR1 = 1000;
                 HAL_Delay(4000);
             }
+            break;
+
+        case -1: // Test speed
+            break;
+        case -2: // Test angle
+            angle = v.x > 180 ? v.x - 360 : v.x;
+            direction_pwm = calculate_pid(&direction, 0.0, angle);
+            break;
+        case -3: // Stop
+            htim4.Instance->CCR3 = motor_pwm = 0;
+            htim1.Instance->CCR1 = 1000;
             break;
         default:
             break;
@@ -265,7 +279,7 @@ int main(void){
         HAL_GPIO_WritePin(motor_a_GPIO_Port, motor_a_Pin, motor_pwm < 0 ? 1 : 0);
         HAL_GPIO_WritePin(motor_b_GPIO_Port, motor_b_Pin, motor_pwm > 0 ? 1 : 0);
         htim4.Instance->CCR3 = motor_pwm > 0 ? motor_pwm : -motor_pwm;
-        htim1.Instance->CCR1 = 100 + direction_pwm;
+        htim1.Instance->CCR1 = 1000 + direction_pwm;
 
         // print ticks
         HAL_Delay(10);
@@ -366,9 +380,9 @@ static void MX_TIM1_Init(void)
 
     /* USER CODE END TIM1_Init 1 */
     htim1.Instance = TIM1;
-    htim1.Init.Prescaler = 720;
+    htim1.Init.Prescaler = 71;
     htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-    htim1.Init.Period = 9999;
+    htim1.Init.Period = 20000;
     htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
     htim1.Init.RepetitionCounter = 0;
     htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
