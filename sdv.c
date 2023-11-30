@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdbool.h>
 #include "bno055_stm32.h"
+#include "math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -84,19 +85,23 @@ float current_distance = 0.0;
 float x_pos = 0.0;
 float y_pos = 0.0;
 
+float target_x = 0.0;
+float target_y = 0.0;
+float target_angle = 0.0;
+float target_distance = 0.0;
+
 uint8_t ult_count = 0;
 
-uint8_t rxData;
-uint8_t btBuffer[3];
+uint8_t btBuffer[12];
+uint8_t txBuffer[10];
 bool toggle_interrupt;
 
 uint8_t iterations = 0;
 bool obstacle = false;
 
-int state = 0;
+int state = -3;
 
-int calculate_pid(struct pid_sytem *system, float setpoint, float current)
-{
+int calculate_pid(struct pid_sytem *system, float setpoint, float current){
     float error = setpoint - current;
     system->integral += error;
     // Saturation for integral values
@@ -109,6 +114,54 @@ int calculate_pid(struct pid_sytem *system, float setpoint, float current)
     output = output < -system->max_value ? -system->max_value : output;
 
     return (int)output;
+}
+void obstacle_handler(){
+    ult_count = 0;
+    HAL_GPIO_WritePin(trig_GPIO_Port, trig_Pin, GPIO_PIN_SET); // pull the TRIG pin low
+    HAL_Delay(0.01);
+    HAL_GPIO_WritePin(trig_GPIO_Port, trig_Pin, GPIO_PIN_RESET); // pull the TRIG pin low
+
+    bool ult_pulse = HAL_GPIO_ReadPin(echo_GPIO_Port, echo_Pin);
+    for (int i = 0; i < 50; i++){
+        if (HAL_GPIO_ReadPin(echo_GPIO_Port, echo_Pin) != ult_pulse)
+            ult_pulse = !ult_pulse;
+        else
+            ult_count++;
+        HAL_Delay(0.01);
+    }
+    if (ult_count == 50){
+        obstacle = true;
+        htim4.Instance->CCR3 = motor_pwm = 0;
+        htim1.Instance->CCR1 = 1000;
+    }
+    else
+        obstacle = false;
+
+    iterations = 0;
+}
+
+void send_odometry(float ang){
+    txBuffer[0] = current_distance > 0 ? '+' : '-';
+    uint8_t tmp = (uint8_t)( current_distance > 0 ? current_distance*100 : -current_distance*100 );
+    txBuffer[1] = tmp / 1000;
+    tmp -= txBuffer[1] * 1000;
+    txBuffer[2] = tmp / 100;
+    tmp -= txBuffer[2] * 100;
+    txBuffer[3] = tmp / 10;
+    tmp -= txBuffer[3] * 10;
+    txBuffer[4] = tmp;
+    tmp = (uint8_t)( ang*100 );
+    txBuffer[5] = tmp / 10000;
+    tmp -= txBuffer[5] * 10000;
+    txBuffer[6] = tmp / 1000;
+    tmp -= txBuffer[6] * 1000;
+    txBuffer[7] = tmp / 100;
+    tmp -= txBuffer[7] * 100;
+    txBuffer[8] = tmp / 10;
+    tmp -= txBuffer[8] * 10;
+    txBuffer[9] = tmp;
+
+    HAL_UART_Transmit(&huart1, txBuffer, 10, 100);
 }
 
 /* USER CODE END 0 */
@@ -146,7 +199,7 @@ int main(void)
     MX_I2C1_Init();
     MX_TIM4_Init();
     /* USER CODE BEGIN 2 */
-    HAL_UART_Receive_IT(&huart1, btBuffer, 3); // Enabling interrupt receive
+    HAL_UART_Receive_IT(&huart1, btBuffer, 12); // Enabling interrupt receive
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
     HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
     bno055_assignI2C(&hi2c1);
@@ -294,32 +347,9 @@ int main(void)
         iterations++;
 
         // Read ultrasonic
-        if (iterations == 10)
-        {
-            ult_count = 0;
-            HAL_GPIO_WritePin(trig_GPIO_Port, trig_Pin, GPIO_PIN_SET); // pull the TRIG pin low
-            HAL_Delay(0.01);
-            HAL_GPIO_WritePin(trig_GPIO_Port, trig_Pin, GPIO_PIN_RESET); // pull the TRIG pin low
-
-            bool ult_pulse = HAL_GPIO_ReadPin(echo_GPIO_Port, echo_Pin);
-            for (int i = 0; i < 50; i++)
-            {
-                if (HAL_GPIO_ReadPin(echo_GPIO_Port, echo_Pin) != ult_pulse)
-                {
-                    ult_pulse = !ult_pulse;
-                }
-                else
-                {
-                    ult_count++;
-                }
-                HAL_Delay(0.01);
-            }
-            if (ult_count == 50)
-                obstacle = true;
-            else
-                obstacle = false;
-
-            iterations = 0;
+        if (iterations == 10){
+            obstacle_handler();
+            send_odometry(v.x);
         }
         /* USER CODE BEGIN 3 */
     }
@@ -638,28 +668,23 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 }
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-    if (huart->Instance == USART1)
-    {
-        // atras
-        /*if(rxData==78) // Ascii value of 'N' is 78 (N for NO)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, 0);
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, 1);
-        }
-        //adelante
-        else if (rxData==89) // Ascii value of 'Y' is 89 (Y for YES)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, 1);
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, 0);
-        }
-        //parar
-        else if (rxData==83){
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, 0);
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, 0);
-        }*/
-        HAL_UART_Receive_IT(&huart1, btBuffer, 3); // Enabling interrupt receive
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+    if (huart->Instance == USART1){
+        float f_buffer[12];
+        for (int i = 0; i < 12; i++)
+            f_buffer[i] = (float)(btBuffer[i]-'0');
+        target_x = f_buffer[1]*10 + f_buffer[2] + f_buffer[4]*0.1 + f_buffer[5]*0.01;
+        target_y = f_buffer[7]*10 + f_buffer[8] + f_buffer[10]*0.1 + f_buffer[11]*0.01;
+
+        if(btBuffer[0]=='-')
+        	target_x *= -1;
+        if(btBuffer[6]=='-')
+        	target_y *= -1;
+
+        target_distance = sqrt(pow(target_x - x_pos, 2) + pow(target_y - y_pos, 2));
+        target_angle = atan2(target_x - x_pos, target_y - y_pos) * 180 / pi;
+
+        HAL_UART_Receive_IT(&huart1, btBuffer, 12); // Enabling interrupt receive
         toggle_interrupt = !toggle_interrupt;
     }
 }
