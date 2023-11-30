@@ -84,9 +84,9 @@ void Error_Handler(void);
 /* USER CODE BEGIN Private defines */
 
 // Trajectory constants
-static const float target_distance = 0.3;
-static const float target_tolerance = 0.02;
-static const float angle_tolerance = 2.0;
+static const float target_distance = 10.0;
+static const float target_tolerance = 0.04;
+static const float angle_tolerance = 1.0;
 static const float distance_offset = 1.05;
 
 // Motor constants
@@ -94,7 +94,7 @@ static const float wheel_diameter = 0.064;
 static const float gear_ratio = 2;
 static const float pi = 3.141592;
 static const float ppr = 670;
-static const int min_pwm = 35000;
+static const int min_pwm = 40000;
 // 1 motor rev = 2*pi*wheel_radius
 
 // Speed PID constants

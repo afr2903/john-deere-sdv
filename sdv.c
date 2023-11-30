@@ -89,10 +89,9 @@ uint8_t rxData;
 uint8_t btBuffer[3];
 bool toggle_interrupt;
 
-int state = 1;
+int state = 0;
 
-int calculate_pid(struct pid_sytem *system, float setpoint, float current)
-{
+int calculate_pid(struct pid_sytem *system, float setpoint, float current){
     float error = setpoint - current;
     system->integral += error;
     // Saturation for integral values
@@ -113,8 +112,7 @@ int calculate_pid(struct pid_sytem *system, float setpoint, float current)
  * @brief  The application entry point.
  * @retval int
  */
-int main(void)
-{
+int main(void){
     /* USER CODE BEGIN 1 */
 
     /* USER CODE END 1 */
@@ -149,14 +147,14 @@ int main(void)
     bno055_setup();
     bno055_setOperationModeNDOF();
     struct pid_sytem position;
-    position.kp = 200000;
-    position.ki = 10000;
-    position.max_integral = 10000;
-    position.max_value = 65535;
+    position.kp = 170000;
+    position.ki = 1000;
+    position.max_integral = 1000;
+    position.max_value = 60535;
 
     struct pid_sytem direction;
-    direction.kp = 1.2;
-    direction.ki = 0.1;
+    direction.kp = 0.9;
+    direction.ki = 0.0;
     direction.max_integral = 50;
     direction.max_value = 50;
 
@@ -164,19 +162,17 @@ int main(void)
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    while (1)
-    {
+    while (1){
         /* USER CODE END WHILE */
         rev = (float)ticks / ppr;
         rpm = (((float)(ticks - last_ticks) / ppr) / (float)HAL_GetTick()) * 600000.0; // Revolutions per minute
         last_ticks = ticks;
-        current_distance = rev * pi * wheel_diameter;
+        current_distance = rev * pi * wheel_diameter * distance_offset;
 
         bno055_vector_t v = bno055_getVectorEuler();
         int motor_pwm = 0, direction_pwm = 0;
 
-        switch (state)
-        {
+        switch (state){
         case 0: // Move forward target_distance meters
             angle = v.x > 180 ? v.x - 360 : v.x;
             motor_pwm = calculate_pid(&position, target_distance, current_distance);
@@ -185,7 +181,7 @@ int main(void)
             {
                 state = 1;
                 htim4.Instance->CCR3 = motor_pwm = 0;
-                HAL_Delay(3000);
+                HAL_Delay(4000);
             }
             break;
         case 1: // Turn 90 degrees
@@ -195,11 +191,73 @@ int main(void)
             if (angle > -angle_tolerance)
             {
                 state = 2;
+                ticks = 0;
                 htim4.Instance->CCR3 = motor_pwm = 0;
-                HAL_Delay(1000);
+                htim1.Instance->CCR1 = 100;
+                HAL_Delay(3000);
             }
             break;
 
+        case 2: // Move forward target_distance meters
+            angle = v.x > 270 ? v.x - 450 : v.x - 90;
+            motor_pwm = calculate_pid(&position, target_distance, current_distance);
+            direction_pwm = calculate_pid(&direction, 0.0, angle);
+            if (target_distance - current_distance < target_tolerance)
+            {
+                state = 3;
+                htim4.Instance->CCR3 = motor_pwm = 0;
+                HAL_Delay(4000);
+            }
+            break;
+        case 3: // Turn 90 degrees
+            angle = v.x - 180;
+            motor_pwm = min_pwm;
+            direction_pwm = calculate_pid(&direction, 0.0, angle);
+            if (angle > -angle_tolerance)
+            {
+                state = 4;
+                ticks = 0;
+                htim4.Instance->CCR3 = motor_pwm = 0;
+                htim1.Instance->CCR1 = 100;
+                HAL_Delay(3000);
+            }
+            break;
+        case 4: // Move forward target_distance meters
+            angle = v.x - 180;
+            motor_pwm = calculate_pid(&position, target_distance, current_distance);
+            direction_pwm = calculate_pid(&direction, 0.0, angle);
+            if (target_distance - current_distance < target_tolerance)
+            {
+                state = 5;
+                htim4.Instance->CCR3 = motor_pwm = 0;
+                HAL_Delay(4000);
+            }
+            break;
+        case 5: // Turn 90 degrees
+            angle = v.x < 90 ? -(90 + v.x) : v.x - 270;
+            motor_pwm = min_pwm;
+            direction_pwm = calculate_pid(&direction, 0.0, angle);
+            if (angle > -angle_tolerance)
+            {
+                state = 6;
+                ticks = 0.0;
+                htim4.Instance->CCR3 = motor_pwm = 0;
+                htim1.Instance->CCR1 = 100;
+                HAL_Delay(3000);
+            }
+            break;
+        case 6: // Move forward target_distance meters
+            angle = v.x < 90 ? -(90 + v.x) : v.x - 270;
+            motor_pwm = calculate_pid(&position, target_distance, current_distance);
+            direction_pwm = calculate_pid(&direction, 0.0, angle);
+            if (target_distance - current_distance < target_tolerance)
+            {
+                state = 7;
+                htim4.Instance->CCR3 = motor_pwm = 0;
+                htim1.Instance->CCR1 = 100;
+                HAL_Delay(4000);
+            }
+            break;
         default:
             break;
         }
