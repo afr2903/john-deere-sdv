@@ -84,9 +84,14 @@ float current_distance = 0.0;
 float x_pos = 0.0;
 float y_pos = 0.0;
 
+uint8_t ult_count = 0;
+
 uint8_t rxData;
 uint8_t btBuffer[3];
 bool toggle_interrupt;
+
+uint8_t iterations = 0;
+bool obstacle = false;
 
 int state = 0;
 
@@ -276,6 +281,9 @@ int main(void)
             break;
         }
 
+        if (obstacle)
+            motor_pwm = direction_pwm = 0;
+
         HAL_GPIO_WritePin(motor_a_GPIO_Port, motor_a_Pin, motor_pwm < 0 ? 1 : 0);
         HAL_GPIO_WritePin(motor_b_GPIO_Port, motor_b_Pin, motor_pwm > 0 ? 1 : 0);
         htim4.Instance->CCR3 = motor_pwm > 0 ? motor_pwm : -motor_pwm;
@@ -283,6 +291,36 @@ int main(void)
 
         // print ticks
         HAL_Delay(10);
+        iterations++;
+
+        // Read ultrasonic
+        if (iterations == 10)
+        {
+            ult_count = 0;
+            HAL_GPIO_WritePin(trig_GPIO_Port, trig_Pin, GPIO_PIN_SET); // pull the TRIG pin low
+            HAL_Delay(0.01);
+            HAL_GPIO_WritePin(trig_GPIO_Port, trig_Pin, GPIO_PIN_RESET); // pull the TRIG pin low
+
+            bool ult_pulse = HAL_GPIO_ReadPin(echo_GPIO_Port, echo_Pin);
+            for (int i = 0; i < 50; i++)
+            {
+                if (HAL_GPIO_ReadPin(echo_GPIO_Port, echo_Pin) != ult_pulse)
+                {
+                    ult_pulse = !ult_pulse;
+                }
+                else
+                {
+                    ult_count++;
+                }
+                HAL_Delay(0.01);
+            }
+            if (ult_count == 50)
+                obstacle = true;
+            else
+                obstacle = false;
+
+            iterations = 0;
+        }
         /* USER CODE BEGIN 3 */
     }
     /* USER CODE END 3 */
@@ -544,7 +582,7 @@ static void MX_GPIO_Init(void)
     HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 
     /*Configure GPIO pin Output Level */
-    HAL_GPIO_WritePin(GPIOA, motor_a_Pin | motor_b_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOA, trig_Pin | motor_a_Pin | motor_b_Pin, GPIO_PIN_RESET);
 
     /*Configure GPIO pin : PC13 */
     GPIO_InitStruct.Pin = GPIO_PIN_13;
@@ -553,24 +591,24 @@ static void MX_GPIO_Init(void)
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
+    /*Configure GPIO pins : echo_Pin encoder_b_Pin */
+    GPIO_InitStruct.Pin = echo_Pin | encoder_b_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    /*Configure GPIO pins : trig_Pin motor_a_Pin motor_b_Pin */
+    GPIO_InitStruct.Pin = trig_Pin | motor_a_Pin | motor_b_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
     /*Configure GPIO pin : encoder_a_Pin */
     GPIO_InitStruct.Pin = encoder_a_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     HAL_GPIO_Init(encoder_a_GPIO_Port, &GPIO_InitStruct);
-
-    /*Configure GPIO pin : encoder_b_Pin */
-    GPIO_InitStruct.Pin = encoder_b_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
-    HAL_GPIO_Init(encoder_b_GPIO_Port, &GPIO_InitStruct);
-
-    /*Configure GPIO pins : motor_a_Pin motor_b_Pin */
-    GPIO_InitStruct.Pin = motor_a_Pin | motor_b_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
     /* EXTI interrupt init*/
     HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
@@ -625,6 +663,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         toggle_interrupt = !toggle_interrupt;
     }
 }
+
 /* USER CODE END 4 */
 
 /**
