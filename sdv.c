@@ -332,7 +332,7 @@ int main(void)
 			} else
 				angle = v.x > comp_angle ? v.x - target_angle - 360 : v.x - target_angle;
 
-            motor_pwm = 1500 * (angle > 0? angle : -angle);
+            motor_pwm = 4500 * (angle > 0? angle : -angle);
             if(motor_pwm > 65000)
             		motor_pwm = 65000;
             direction_pwm = calculate_pid(&direction, 0.0, angle);
@@ -370,7 +370,7 @@ int main(void)
         if (obstacle)
         	motor_pwm = direction_pwm = 0;
 
-        htim4.Instance->CCR3 = (motor_pwm > 5000 && motor_pwm < 25000)? min_pwm : motor_pwm;
+        htim4.Instance->CCR3 = (motor_pwm > 5000 && motor_pwm < 25000)? 25000 : motor_pwm;
         htim1.Instance->CCR1 = 1000 + direction_pwm;
 
         // print ticks
