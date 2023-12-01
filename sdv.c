@@ -234,14 +234,12 @@ int main(void)
         bno055_vector_t v = bno055_getVectorEuler();
         int motor_pwm = 0, direction_pwm = 0;
 
-        switch (state)
-        {
+        switch (state){
         case 0: // Move forward target_distance meters
             angle = v.x > 180 ? v.x - 360 : v.x;
             motor_pwm = calculate_pid(&position, target_distance, current_distance);
             direction_pwm = calculate_pid(&direction, 0.0, angle);
-            if (target_distance - current_distance < target_tolerance)
-            {
+            if (10.00 - current_distance < target_tolerance){
                 state = -3;
                 htim4.Instance->CCR3 = motor_pwm = 0;
                 HAL_Delay(4000);
@@ -251,8 +249,7 @@ int main(void)
             angle = v.x > 270 ? v.x - 450 : v.x - 90;
             motor_pwm = min_pwm;
             direction_pwm = calculate_pid(&direction, 0.0, angle);
-            if (angle > -angle_tolerance)
-            {
+            if (angle > -angle_tolerance){
                 state = 2;
                 ticks = 0;
                 htim4.Instance->CCR3 = motor_pwm = 0;
@@ -265,8 +262,7 @@ int main(void)
             angle = v.x > 270 ? v.x - 450 : v.x - 90;
             motor_pwm = calculate_pid(&position, target_distance, current_distance);
             direction_pwm = calculate_pid(&direction, 0.0, angle);
-            if (target_distance - current_distance < target_tolerance)
-            {
+            if (10.00 - current_distance < target_tolerance){
                 state = 3;
                 htim4.Instance->CCR3 = motor_pwm = 0;
                 HAL_Delay(4000);
@@ -276,8 +272,7 @@ int main(void)
             angle = v.x - 180;
             motor_pwm = min_pwm;
             direction_pwm = calculate_pid(&direction, 0.0, angle);
-            if (angle > -angle_tolerance)
-            {
+            if (angle > -angle_tolerance){
                 state = 4;
                 ticks = 0;
                 htim4.Instance->CCR3 = motor_pwm = 0;
@@ -289,8 +284,7 @@ int main(void)
             angle = v.x - 180;
             motor_pwm = calculate_pid(&position, target_distance, current_distance);
             direction_pwm = calculate_pid(&direction, 0.0, angle);
-            if (target_distance - current_distance < target_tolerance)
-            {
+            if (10.00 - current_distance < target_tolerance){
                 state = 5;
                 htim4.Instance->CCR3 = motor_pwm = 0;
                 HAL_Delay(4000);
@@ -300,8 +294,7 @@ int main(void)
             angle = v.x < 90 ? 90 + v.x : v.x - 270;
             motor_pwm = min_pwm;
             direction_pwm = calculate_pid(&direction, 0.0, angle);
-            if (angle > -angle_tolerance)
-            {
+            if (angle > -angle_tolerance){
                 state = 6;
                 ticks = 0.0;
                 htim4.Instance->CCR3 = motor_pwm = 0;
@@ -313,8 +306,7 @@ int main(void)
             angle = v.x < 90 ? -(90 + v.x) : v.x - 270;
             motor_pwm = calculate_pid(&position, target_distance, current_distance);
             direction_pwm = calculate_pid(&direction, 0.0, angle);
-            if (target_distance - current_distance < target_tolerance)
-            {
+            if (target_distance - current_distance < target_tolerance){
                 state = -3;
                 htim4.Instance->CCR3 = motor_pwm = 0;
                 htim1.Instance->CCR1 = 1000;
@@ -399,8 +391,7 @@ int main(void)
  * @brief System Clock Configuration
  * @retval None
  */
-void SystemClock_Config(void)
-{
+void SystemClock_Config(void){
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
@@ -688,17 +679,14 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-    if (HAL_GPIO_ReadPin(encoder_a_GPIO_Port, encoder_a_Pin))
-    {
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+    if (HAL_GPIO_ReadPin(encoder_a_GPIO_Port, encoder_a_Pin)){
         if (!HAL_GPIO_ReadPin(encoder_b_GPIO_Port, encoder_b_Pin))
             ticks++;
         else
             ticks--;
     }
-    else
-    {
+    else{
         if (!HAL_GPIO_ReadPin(encoder_b_GPIO_Port, encoder_b_Pin))
             ticks--;
         else
@@ -709,6 +697,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
     if (huart->Instance == USART1){
+        if(btBuffer[0]=='s'){ //Square 
+            state = 0;
+            HAL_UART_Receive_IT(&huart1, btBuffer, 12);
+            return;   
+        }
+
         float f_buffer[12];
         for (int i = 0; i < 12; i++)
             f_buffer[i] = (float)(btBuffer[i]-'0');
