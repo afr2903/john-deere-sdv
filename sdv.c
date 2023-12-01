@@ -237,12 +237,12 @@ int main(void)
         switch (state){
         case 0: // Move forward target_distance meters
             angle = v.x > 180 ? v.x - 360 : v.x;
-            motor_pwm = calculate_pid(&position, target_distance, current_distance);
+            motor_pwm = calculate_pid(&position, 10.00, current_distance);
             direction_pwm = calculate_pid(&direction, 0.0, angle);
             if (10.00 - current_distance < target_tolerance){
-                state = -3;
+                state = 1;
                 htim4.Instance->CCR3 = motor_pwm = 0;
-                HAL_Delay(4000);
+                HAL_Delay(10000);
             }
             break;
         case 1: // Turn 90 degrees
@@ -254,18 +254,18 @@ int main(void)
                 ticks = 0;
                 htim4.Instance->CCR3 = motor_pwm = 0;
                 htim1.Instance->CCR1 = 1000;
-                HAL_Delay(3000);
+                HAL_Delay(1000);
             }
             break;
 
         case 2: // Move forward target_distance meters
             angle = v.x > 270 ? v.x - 450 : v.x - 90;
-            motor_pwm = calculate_pid(&position, target_distance, current_distance);
+            motor_pwm = calculate_pid(&position, 10.00, current_distance);
             direction_pwm = calculate_pid(&direction, 0.0, angle);
             if (10.00 - current_distance < target_tolerance){
                 state = 3;
                 htim4.Instance->CCR3 = motor_pwm = 0;
-                HAL_Delay(4000);
+                HAL_Delay(10000);
             }
             break;
         case 3: // Turn 90 degrees
@@ -277,17 +277,17 @@ int main(void)
                 ticks = 0;
                 htim4.Instance->CCR3 = motor_pwm = 0;
                 htim1.Instance->CCR1 = 1000;
-                HAL_Delay(3000);
+                HAL_Delay(1000);
             }
             break;
         case 4: // Move forward target_distance meters
             angle = v.x - 180;
-            motor_pwm = calculate_pid(&position, target_distance, current_distance);
+            motor_pwm = calculate_pid(&position, 10.00, current_distance);
             direction_pwm = calculate_pid(&direction, 0.0, angle);
             if (10.00 - current_distance < target_tolerance){
                 state = 5;
                 htim4.Instance->CCR3 = motor_pwm = 0;
-                HAL_Delay(4000);
+                HAL_Delay(10000);
             }
             break;
         case 5: // Turn 90 degrees
@@ -299,18 +299,18 @@ int main(void)
                 ticks = 0.0;
                 htim4.Instance->CCR3 = motor_pwm = 0;
                 htim1.Instance->CCR1 = 1000;
-                HAL_Delay(3000);
+                HAL_Delay(1000);
             }
             break;
         case 6: // Move forward target_distance meters
-            angle = v.x < 90 ? -(90 + v.x) : v.x - 270;
-            motor_pwm = calculate_pid(&position, target_distance, current_distance);
+            angle = v.x < 90 ? 90 + v.x : v.x - 270;
+            motor_pwm = calculate_pid(&position, 10.00, current_distance);
             direction_pwm = calculate_pid(&direction, 0.0, angle);
             if (target_distance - current_distance < target_tolerance){
                 state = -3;
                 htim4.Instance->CCR3 = motor_pwm = 0;
                 htim1.Instance->CCR1 = 1000;
-                HAL_Delay(4000);
+                HAL_Delay(10000);
             }
             break;
 
@@ -332,7 +332,7 @@ int main(void)
 			} else
 				angle = v.x > comp_angle ? v.x - target_angle - 360 : v.x - target_angle;
 
-            motor_pwm = 15000 * (angle > 0? angle : -angle);
+            motor_pwm = 1500 * (angle > 0? angle : -angle);
             if(motor_pwm > 65000)
             		motor_pwm = 65000;
             direction_pwm = calculate_pid(&direction, 0.0, angle);
@@ -364,12 +364,12 @@ int main(void)
             break;
         }
 
-        if (obstacle)
-            motor_pwm = direction_pwm = 0;
-
         HAL_GPIO_WritePin(motor_a_GPIO_Port, motor_a_Pin, motor_pwm < 0 ? 1 : 0);
         HAL_GPIO_WritePin(motor_b_GPIO_Port, motor_b_Pin, motor_pwm > 0 ? 1 : 0);
         motor_pwm = motor_pwm > 0 ? motor_pwm : -motor_pwm;
+        if (obstacle)
+        	motor_pwm = direction_pwm = 0;
+
         htim4.Instance->CCR3 = (motor_pwm > 5000 && motor_pwm < 25000)? min_pwm : motor_pwm;
         htim1.Instance->CCR1 = 1000 + direction_pwm;
 
@@ -379,7 +379,7 @@ int main(void)
 
         // Read ultrasonic
         if (iterations == 10){
-            //obstacle_handler();
+            obstacle_handler();
             //send_odometry(v.x);
         }
         /* USER CODE BEGIN 3 */
@@ -697,10 +697,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
     if (huart->Instance == USART1){
-        if(btBuffer[0]=='s'){ //Square 
+        if(btBuffer[0]=='s'){ //Square
             state = 0;
             HAL_UART_Receive_IT(&huart1, btBuffer, 12);
-            return;   
+            return;
         }
 
         float f_buffer[12];
