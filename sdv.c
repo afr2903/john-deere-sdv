@@ -90,6 +90,8 @@ float target_y = 0.0;
 float target_angle = 0.0;
 float target_distance = 0.0;
 
+float comp_angle = 0.0;
+
 uint8_t ult_count = 0;
 
 uint8_t btBuffer[12];
@@ -131,7 +133,7 @@ void obstacle_handler(){
     }
     if (ult_count == 50){
         obstacle = true;
-        htim4.Instance->CCR3 = motor_pwm = 0;
+        htim4.Instance->CCR3 = 0;
         htim1.Instance->CCR1 = 1000;
     }
     else
@@ -206,7 +208,7 @@ int main(void)
     bno055_setup();
     bno055_setOperationModeNDOF();
     struct pid_sytem position;
-    position.kp = 170000;
+    position.kp = 120000;
     position.ki = 1000;
     position.max_integral = 1000;
     position.max_value = 60535;
@@ -215,7 +217,7 @@ int main(void)
     direction.kp = 14;
     direction.ki = 0.0;
     direction.max_integral = 50;
-    direction.max_value = 500;
+    direction.max_value = 400;
 
     /* USER CODE END 2 */
 
@@ -295,7 +297,7 @@ int main(void)
             }
             break;
         case 5: // Turn 90 degrees
-            angle = v.x < 90 ? -(90 + v.x) : v.x - 270;
+            angle = v.x < 90 ? 90 + v.x : v.x - 270;
             motor_pwm = min_pwm;
             direction_pwm = calculate_pid(&direction, 0.0, angle);
             if (angle > -angle_tolerance)
@@ -330,6 +332,42 @@ int main(void)
             htim4.Instance->CCR3 = motor_pwm = 0;
             htim1.Instance->CCR1 = 1000;
             break;
+        case -4: // Turn to target_angle
+        	comp_angle = target_angle + 180;
+        	 if (comp_angle > 360){
+        		 comp_angle -= 360;
+        	     angle = v.x < comp_angle ? (360-target_angle) + v.x : v.x - target_angle;
+			} else
+				angle = v.x > comp_angle ? v.x - target_angle - 360 : v.x - target_angle;
+
+            motor_pwm = 15000 * (angle > 0? angle : -angle);
+            if(motor_pwm > 65000)
+            		motor_pwm = 65000;
+            direction_pwm = calculate_pid(&direction, 0.0, angle);
+            if (angle > -angle_tolerance && angle < angle_tolerance){
+                state = -5;
+                htim4.Instance->CCR3 = motor_pwm = 0;
+                htim1.Instance->CCR1 = 1000;
+                HAL_Delay(3000);
+                ticks = 0;
+            }
+            break;
+        case -5:
+            comp_angle = target_angle + 180;
+            if (comp_angle > 360){
+                comp_angle -= 360;
+                angle = v.x < comp_angle ? (360-target_angle) + v.x : v.x - target_angle;
+            } else
+                angle = v.x > comp_angle ? v.x - target_angle - 360 : v.x - target_angle;
+
+            motor_pwm = calculate_pid(&position, target_distance, current_distance);
+            direction_pwm = calculate_pid(&direction, 0.0, angle);
+            if (target_distance - current_distance < target_tolerance && target_distance - current_distance > -target_tolerance){
+                state = -3;
+                htim4.Instance->CCR3 = motor_pwm = 0;
+                HAL_Delay(4000);
+            }
+            break;
         default:
             break;
         }
@@ -339,7 +377,8 @@ int main(void)
 
         HAL_GPIO_WritePin(motor_a_GPIO_Port, motor_a_Pin, motor_pwm < 0 ? 1 : 0);
         HAL_GPIO_WritePin(motor_b_GPIO_Port, motor_b_Pin, motor_pwm > 0 ? 1 : 0);
-        htim4.Instance->CCR3 = motor_pwm > 0 ? motor_pwm : -motor_pwm;
+        motor_pwm = motor_pwm > 0 ? motor_pwm : -motor_pwm;
+        htim4.Instance->CCR3 = (motor_pwm > 5000 && motor_pwm < 25000)? min_pwm : motor_pwm;
         htim1.Instance->CCR1 = 1000 + direction_pwm;
 
         // print ticks
@@ -348,8 +387,8 @@ int main(void)
 
         // Read ultrasonic
         if (iterations == 10){
-            obstacle_handler();
-            send_odometry(v.x);
+            //obstacle_handler();
+            //send_odometry(v.x);
         }
         /* USER CODE BEGIN 3 */
     }
@@ -683,6 +722,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 
         target_distance = sqrt(pow(target_x - x_pos, 2) + pow(target_y - y_pos, 2));
         target_angle = atan2(target_x - x_pos, target_y - y_pos) * 180 / pi;
+        if (target_angle < 0)
+            target_angle += 360;
+        state = -4;
 
         HAL_UART_Receive_IT(&huart1, btBuffer, 12); // Enabling interrupt receive
         toggle_interrupt = !toggle_interrupt;
